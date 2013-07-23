@@ -1,3 +1,5 @@
+//#include <RcppArmadillo.h>
+#include <armadillo>
 #include "R.h"
 #include "Rinternals.h"
 #include "Rmath.h"
@@ -168,20 +170,9 @@ SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
 }
 
 
-double my_median(int n, double *x)
-{
-  int k = -1;
-
-  if(n%2) {
-    k = (n-1)/2;
-    rPsort(x, n, k);
-    return(x[k]);
-  }
-
-  k = n/2;
-  rPsort(x, n, k);
-  rPsort(x, k, k-1);
-  return((x[k-1] + x[k]) / 2.0);
+double my_median(const int n, double *x) {
+  const arma::vec v(x,n,false,true);
+  return arma::median(v);
 }
 
 
