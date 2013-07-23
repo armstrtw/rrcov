@@ -26,7 +26,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   double *dwork1 = NULL, *dwork2 = NULL, *dwork3 = NULL, *diagT = NULL, *offdiagT = NULL;
   double *tau = NULL, *gamma = NULL, *cov = NULL, *covcopy = NULL, *center = NULL, *dist = NULL;
   double mu = 0.0, alpha = 0.0, DZERO = 0.0, DONE = 1.0;
-  int n = 0, p = 0, np = 0, pp = 0, iter = -1, i = 0, j = 0, k = 0, info = 0, lwork = 0;
+  int n = 0, p = 0, np = 0, pp = 0, iter = -1, i = 0, j = 0, info = 0, lwork = 0;
   int liwork = 0, IONE = 1;
   int *isuppz = NULL, *iwork = NULL;
 	SEXP Sans = R_NilValue, Scov = R_NilValue, Scenter = R_NilValue;
@@ -73,7 +73,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   covcopy = (double*) R_alloc((size_t) pp, sizeof(double));
 
   A = (double**) R_alloc((size_t) iter, sizeof(double*));
-  for(k = 0; k < iter; k++)
+  for(int k = 0; k < iter; k++)
     A[k] = (double*) R_alloc((size_t) pp, sizeof(double));
 
   d = (double*) R_alloc((size_t) p, sizeof(double));
@@ -87,7 +87,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   isuppz = (int*) R_alloc((size_t) (2*p), sizeof(int));
   iwork = (int*) R_alloc((size_t) liwork, sizeof(int));
 
-  for(k = 0; k < iter; k++) {
+  for(int k = 0; k < iter; k++) {
 
     for(j = 0; j < p; j++) {
       d[j] = scalefn(n, Z+j*n, dwork1, dwork2, &mu);
@@ -144,7 +144,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
     dist[i] = F77_CALL(dasum)(&p, Z+i, &n);
   }
 
-  for(k = iter-1; k >= 0; k--) {
+  for(int k = iter-1; k >= 0; k--) {
     F77_CALL(dcopy)(&pp, cov, &IONE, covcopy, &IONE);
     F77_CALL(dgemm)(&CHARN, &CHARN, &p, &p, &p, &DONE, A[k], &p, covcopy,
                     &p, &DZERO, cov, &p);
