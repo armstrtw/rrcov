@@ -21,6 +21,7 @@ double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu);
 
 extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
 {
+  std::cout << "calling covOPW" << std::endl;
   char CHARA = 'A', CHARL = 'L', CHARN = 'N', CHART = 'T', CHARV = 'V';
   double *X = NULL, *Z = NULL, *ZCOPY = NULL, *U = NULL, **A = NULL, *d = NULL;
   double *dwork1 = NULL, *dwork2 = NULL, *dwork3 = NULL, *diagT = NULL, *offdiagT = NULL;
@@ -262,22 +263,7 @@ double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, doub
 }
 
 
-double dsum(int n, double* x, int incx, double* wrkn)
-{
-  int i = 0;
-
-  if(n == 1)
-    return x[0];
-
-  while(i < n/2) {
-    wrkn[i] = x[2*incx*i] + x[(2*i+1)*incx];
-    i++;
-  }
-
-  if(2*i < n)
-    wrkn[i-1] = wrkn[i-1] + x[2*incx*i];
-
-  return dsum(i, wrkn, 1, wrkn+i);
+double dsum(int n, double* x, int incx, double* wrkn) {
+  const arma::vec v(x,n,false,true);
+  return arma::accu(v);
 }
-
-
