@@ -186,21 +186,17 @@ double my_mad(int n, double *x, double *dwork1, double *dwork2, double *mu) {
 
 double gk(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
 {
-  const int IONE = 1;
-  double plus = 0.0, minus = 0.0, mu = 0.0;
-  const double DONE = 1.0, DNEGONE = -1.0;
+  double mu = 0.0;
+  const arma::vec xx(x,n,false,true);
+  const arma::vec yy(y,n,false,true);
+  arma::vec plus_ts = xx + yy;
+  const double plus = scalefn(n, plus_ts.colptr(0), dwork2, dwork3, &mu);
 
-  F77_CALL(dcopy)(&n, x, &IONE, dwork1, &IONE);
-  F77_CALL(daxpy)(&n, &DONE, y, &IONE, dwork1, &IONE);
-  plus = scalefn(n, dwork1, dwork2, dwork3, &mu);
-
-  F77_CALL(dcopy)(&n, x, &IONE, dwork1, &IONE);
-  F77_CALL(daxpy)(&n, &DNEGONE, y, &IONE, dwork1, &IONE);
-  minus = scalefn(n, dwork1, dwork2, dwork3, &mu);
+  arma::vec minus_ts = xx - yy;
+  const double minus = scalefn(n, minus_ts.colptr(0), dwork2, dwork3, &mu);
 
   return (R_pow_di(plus, 2) - R_pow_di(minus, 2)) / 4.0;
 }
-
 
 double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu)
 {
