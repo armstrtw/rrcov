@@ -243,22 +243,18 @@ double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu)
 
 double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
 {
-  double medx = 0.0, medy = 0.0, r = 0.0;
-  int IONE = 1, i = 0, onethree = 0, twofour = 0;
+  int onethree = 0, twofour = 0;
+  const double medx = my_median(n, x);
+  const double medy = my_median(n, y);
 
-  F77_CALL(dcopy)(&n, x, &IONE, dwork1, &IONE);
-  medx = my_median(n, dwork1);
-  F77_CALL(dcopy)(&n, y, &IONE, dwork1, &IONE);
-  medy = my_median(n, dwork1);
-
-  for(i = 0; i < n; i++) {
+  for(int i = 0; i < n; i++) {
     if((x[i] > medx && y[i] > medy) || (x[i] < medx && y[i] < medy))
       onethree++;
     else if((x[i] > medx && y[i] < medy) || (x[i] < medx && y[i] > medy))
       twofour++;
   }
 
-  r = ((double) (onethree - twofour)) / ((double) (onethree + twofour));
+  const double r = ((double) (onethree - twofour)) / ((double) (onethree + twofour));
   return sin(M_PI_2*r);
 }
 
