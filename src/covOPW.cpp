@@ -1,4 +1,5 @@
 //#include <RcppArmadillo.h>
+#include <iostream>
 #include <armadillo>
 #include "R.h"
 #include "Rinternals.h"
@@ -18,7 +19,7 @@ double dsum(int n, double* x, int incx, double* wrkn);
 double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu);
 
 
-SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
+extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
 {
   char CHARA = 'A', CHARL = 'L', CHARN = 'N', CHART = 'T', CHARV = 'V';
   double *X = NULL, *Z = NULL, *ZCOPY = NULL, *U = NULL, **A = NULL, *d = NULL;
@@ -175,18 +176,12 @@ double my_median(const int n, double *x) {
   return arma::median(v);
 }
 
-
-double my_mad(int n, double *x, double *dwork1, double *dwork2, double *mu)
-{
-  const int IONE = 1;
-  int i = 0;
-  F77_CALL(dcopy)(&n, x, &IONE, dwork1, &IONE);
-  *mu = my_median(n, dwork1);
-  for(i = 0; i < n; i++)
-    dwork1[i] = fabs(dwork1[i] - *mu);
-  return my_median(n, dwork1) * 1.4826;
+double my_mad(int n, double *x, double *dwork1, double *dwork2, double *mu) {
+  const arma::vec v(x,n,false,true);
+  const double mux = arma::median(v);
+  *mu = mux;
+  return arma::median(abs(v - mux)) * 1.4826;
 }
-
 
 double gk(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
 {
