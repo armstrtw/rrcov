@@ -18,6 +18,15 @@ double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, doub
 double dsum(int n, double* x, int incx, double* wrkn);
 double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu);
 
+void calcCovs(double* U, arma::mat& X, rcovFnPtr* rcovfn, scaleFnPtr*scalefn,double* dwork1, double* dwork2, double* dwork3) {
+  int p = X.n_cols;
+  int n = X.n_rows;
+  for(int i = 1; i < p; i++) {
+    for(int j = 0; j < i; j++) {
+      U[i+((2*p-j-1)*j)/2] = rcovfn(n, X.colptr(i), X.colptr(j), scalefn, dwork1, dwork2, dwork3);
+    }
+  }
+}
 
 extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
 {
@@ -67,6 +76,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
 
   X = REAL(SX);
   Z = (double*) R_alloc((size_t) np, sizeof(double));
+  arma::mat ZZ(X,n,p,false,true);
   F77_CALL(dcopy)(&np, X, &IONE, Z, &IONE);
 
   ZCOPY = (double*) R_alloc((size_t) np, sizeof(double));
@@ -91,20 +101,15 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   for(int k = 0; k < iter; k++) {
 
     for(j = 0; j < p; j++) {
-      d[j] = scalefn(n, Z+j*n, dwork1, dwork2, &mu);
+      d[j] = scalefn(n, ZZ.colptr(j), dwork1, dwork2, &mu);
       //this can be handled better
-      if(fabs(d[j]) < 1e-12)
-        error("column with zero scale encountered in C function covOPW");
+      if(fabs(d[j]) < 1e-12) error("column with zero scale encountered in C function covOPW");
       alpha = 1.0 / d[j];
-      F77_CALL(dscal)(&n, &alpha, Z+j*n, &IONE);
+      ZZ.col(j) *= alpha;
     }
 
-    for(i = 0; i < p; i++)
-      U[i+((2*p-i-1)*i)/2] = 1.0;
-
-    for(i = 1; i < p; i++)
-      for(j = 0; j < i; j++)
-        U[i+((2*p-j-1)*j)/2] = rcovfn(n, Z+i*n, Z+j*n, scalefn, dwork1, dwork2, dwork3);
+    for(i = 0; i < p; i++) U[i+((2*p-i-1)*i)/2] = 1.0;
+    calcCovs(U, ZZ, rcovfn, scalefn, dwork1, dwork2, dwork3);
 
     F77_CALL(dsptrd)(&CHARL, &p, U, diagT, offdiagT, tau, &info);
     F77_CALL(dstegr)(&CHARV, &CHARA, &p, diagT, offdiagT, &mu, &mu, &i,
@@ -113,8 +118,9 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
     F77_CALL(dopmtr)(&CHARL, &CHARL, &CHARN, &p, &p, U, tau, A[k], &p,
                      dwork2, &info);
 
-    for(j = 0; j < p/2; j++)
+    for(j = 0; j < p/2; j++) {
       F77_CALL(dswap)(&p, A[k]+j*p, &IONE, A[k]+p*(p-j-1), &IONE);
+    }
 
     F77_CALL(dcopy)(&np, Z, &IONE, ZCOPY, &IONE);
     F77_CALL(dgemm)(&CHARN, &CHARN, &n, &p, &p, &DONE, ZCOPY, &n, A[k],
@@ -236,7 +242,6 @@ double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu)
   return sigma0 * sqrt(dsum(n, dwork2, 1, dwork1) / (n*Es2c));
 }
 
-
 double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
 {
   int onethree = 0, twofour = 0;
@@ -253,7 +258,6 @@ double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, doub
   const double r = ((double) (onethree - twofour)) / ((double) (onethree + twofour));
   return sin(M_PI_2*r);
 }
-
 
 double dsum(int n, double* x, int incx, double* wrkn) {
   const arma::vec v(x,n,false,true);
