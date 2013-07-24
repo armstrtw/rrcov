@@ -1,6 +1,8 @@
 //#include <RcppArmadillo.h>
+#include <list>
 #include <iostream>
 #include <armadillo>
+#include <tbb/parallel_do.h>
 #include "R.h"
 #include "Rinternals.h"
 #include "Rmath.h"
@@ -19,13 +21,47 @@ double dsum(int n, double* x, int incx, double* wrkn);
 double my_mad(int n, double *x, double *mu);
 double scaleTau2(int n, double *x, double *mu);
 
+class CovRes {
+public:
+  arma::mat& X_;
+  int i_, j_;
+  rcovFnPtr* rcovfn_;
+  scaleFnPtr* scalefn_;
+  double res;
+  CovRes(arma::mat& X, int i, int j, rcovFnPtr* rcovfn, scaleFnPtr* scalefn): X_(X), i_(i), j_(j), rcovfn_(rcovfn), scalefn_(scalefn) {}
+  void calcCov() {
+    res = rcovfn_(X_.n_rows, X_.colptr(i_), X_.colptr(j_), scalefn_);
+  }
+  const double getRes() { return res; }
+};
+
+class CovOp {
+public:
+  void operator()(CovRes& w) const {
+    w.calcCov();
+  }
+};
+
 void calcCovs(double* U, arma::mat& X, rcovFnPtr* rcovfn, scaleFnPtr* scalefn) {
   int p = X.n_cols;
-  int n = X.n_rows;
+  std::list<CovRes> tasks;
+
+  // push tasks onto queue
   for(int i = 1; i < p; i++) {
     for(int j = 0; j < i; j++) {
-      U[i+((2*p-j-1)*j)/2] = rcovfn(n, X.colptr(i), X.colptr(j), scalefn);
+      //U[i+((2*p-j-1)*j)/2] = rcovfn(n, X.colptr(i), X.colptr(j), scalefn);
+      tasks.push_back(CovRes(X,i,j,rcovfn,scalefn));
     }
+  }
+
+  // exec tasks
+  tbb::parallel_do(tasks.begin(), tasks.end(), CovOp());
+
+  // pull results off of queue
+  for(std::list<CovRes>::iterator iter = tasks.begin(); iter!= tasks.end(); ++iter) {
+    int i = iter->i_;
+    int j = iter->j_;
+    U[i+((2*p-j-1)*j)/2] = iter->res;
   }
 }
 
