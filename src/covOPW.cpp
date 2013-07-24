@@ -7,23 +7,24 @@
 #include "R_ext/BLAS.h"
 #include "R_ext/Lapack.h"
 
-typedef double (scaleFnPtr)(int, double*, double*, double*, double*);
-typedef double (rcovFnPtr)(int, double*, double*, scaleFnPtr*, double*, double*, double*);
+typedef double (scaleFnPtr)(int, double*, double*);
+typedef double (rcovFnPtr)(int, double*, double*, scaleFnPtr*);
 
 
-double my_mad(int n, double *x, double *dwork1, double *dwork2, double *mu);
+
 double my_median(int n, double *x);
-double gk(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3);
-double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3);
+double gk(int n, double *x, double *y, scaleFnPtr *scalefn);
+double qc(int n, double *x, double *y, scaleFnPtr *scalefn);
 double dsum(int n, double* x, int incx, double* wrkn);
-double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu);
+double my_mad(int n, double *x, double *mu);
+double scaleTau2(int n, double *x, double *mu);
 
-void calcCovs(double* U, arma::mat& X, rcovFnPtr* rcovfn, scaleFnPtr*scalefn,double* dwork1, double* dwork2, double* dwork3) {
+void calcCovs(double* U, arma::mat& X, rcovFnPtr* rcovfn, scaleFnPtr* scalefn) {
   int p = X.n_cols;
   int n = X.n_rows;
   for(int i = 1; i < p; i++) {
     for(int j = 0; j < i; j++) {
-      U[i+((2*p-j-1)*j)/2] = rcovfn(n, X.colptr(i), X.colptr(j), scalefn, dwork1, dwork2, dwork3);
+      U[i+((2*p-j-1)*j)/2] = rcovfn(n, X.colptr(i), X.colptr(j), scalefn);
     }
   }
 }
@@ -101,7 +102,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   for(int k = 0; k < iter; k++) {
 
     for(j = 0; j < p; j++) {
-      d[j] = scalefn(n, ZZ.colptr(j), dwork1, dwork2, &mu);
+      d[j] = scalefn(n, ZZ.colptr(j), &mu);
       //this can be handled better
       if(fabs(d[j]) < 1e-12) error("column with zero scale encountered in C function covOPW");
       alpha = 1.0 / d[j];
@@ -109,7 +110,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
     }
 
     for(i = 0; i < p; i++) U[i+((2*p-i-1)*i)/2] = 1.0;
-    calcCovs(U, ZZ, rcovfn, scalefn, dwork1, dwork2, dwork3);
+    calcCovs(U, ZZ, rcovfn, scalefn);
 
     F77_CALL(dsptrd)(&CHARL, &p, U, diagT, offdiagT, tau, &info);
     F77_CALL(dstegr)(&CHARV, &CHARA, &p, diagT, offdiagT, &mu, &mu, &i,
@@ -139,7 +140,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   dist = REAL(Sdist);
 
   for(j = 0; j < p; j++) {
-    gamma[j] = scalefn(n, Z+j*n, dwork1, dwork2, &mu);
+    gamma[j] = scalefn(n, Z+j*n, &mu);
     for(i = 0; i < p; i++)
       cov[i+j*p] = i == j ? gamma[j] * gamma[j] : 0.0;
     center[j] = mu;
@@ -183,29 +184,30 @@ double my_median(const int n, double *x) {
   return arma::median(v);
 }
 
-double my_mad(int n, double *x, double *dwork1, double *dwork2, double *mu) {
+double gk(int n, double *x, double *y, scaleFnPtr *scalefn)
+{
+  double mu = 0.0;
+  const arma::vec xx(x,n,false,true);
+  const arma::vec yy(y,n,false,true);
+  arma::vec plus_ts = xx + yy;
+  const double plus = scalefn(n, plus_ts.colptr(0), &mu);
+
+  arma::vec minus_ts = xx - yy;
+  const double minus = scalefn(n, minus_ts.colptr(0), &mu);
+
+  return (R_pow_di(plus, 2) - R_pow_di(minus, 2)) / 4.0;
+}
+
+double my_mad(int n, double *x, double *mu) {
   const arma::vec v(x,n,false,true);
   const double mux = arma::median(v);
   *mu = mux;
   return arma::median(abs(v - mux)) * 1.4826;
 }
 
-double gk(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
-{
-  double mu = 0.0;
-  const arma::vec xx(x,n,false,true);
-  const arma::vec yy(y,n,false,true);
-  arma::vec plus_ts = xx + yy;
-  const double plus = scalefn(n, plus_ts.colptr(0), dwork2, dwork3, &mu);
-
-  arma::vec minus_ts = xx - yy;
-  const double minus = scalefn(n, minus_ts.colptr(0), dwork2, dwork3, &mu);
-
-  return (R_pow_di(plus, 2) - R_pow_di(minus, 2)) / 4.0;
-}
-
-double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu)
-{
+double scaleTau2(int n, double *x, double *mu) {
+  double *dwork1 = new double[n];
+  double *dwork2 = new double[n];
   const double C1 = 4.5, C2squared = 9.0;
 //  const double C2 = 3.0;
   const double Es2c = 0.9247153921761315;
@@ -239,10 +241,13 @@ double scaleTau2(int n, double *x, double *dwork1, double *dwork2, double *mu)
     dwork2[i] = dwork2[i] > C2squared ? C2squared : dwork2[i];
   }
 
-  return sigma0 * sqrt(dsum(n, dwork2, 1, dwork1) / (n*Es2c));
+  double ans = sigma0 * sqrt(dsum(n, dwork2, 1, dwork1) / (n*Es2c));
+  delete[] dwork1;
+  delete[] dwork2;
+  return ans;
 }
 
-double qc(int n, double *x, double *y, scaleFnPtr *scalefn, double *dwork1, double *dwork2, double *dwork3)
+double qc(int n, double *x, double *y, scaleFnPtr *scalefn)
 {
   int onethree = 0, twofour = 0;
   const double medx = my_median(n, x);
