@@ -34,7 +34,7 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
   std::cout << "calling covOPW" << std::endl;
   char CHARA = 'A', CHARL = 'L', CHARN = 'N', CHART = 'T', CHARV = 'V';
   double *X = NULL, *Z = NULL, *ZCOPY = NULL, *U = NULL, **A = NULL, *d = NULL;
-  double *dwork1 = NULL, *dwork2 = NULL, *dwork3 = NULL, *diagT = NULL, *offdiagT = NULL;
+  double *dwork2 = NULL, *dwork3 = NULL, *diagT = NULL, *offdiagT = NULL;
   double *tau = NULL, *gamma = NULL, *cov = NULL, *covcopy = NULL, *center = NULL, *dist = NULL;
   double mu = 0.0, alpha = 0.0, DZERO = 0.0, DONE = 1.0;
   int n = 0, p = 0, np = 0, pp = 0, iter = -1, i = 0, j = 0, info = 0, lwork = 0;
@@ -89,7 +89,6 @@ extern "C" SEXP covOPW(SEXP SX, SEXP Siter, SEXP SscaleFun, SEXP SrcovFun)
     A[k] = (double*) R_alloc((size_t) pp, sizeof(double));
 
   d = (double*) R_alloc((size_t) p, sizeof(double));
-  dwork1 = (double*) R_alloc((size_t) n, sizeof(double));
   dwork2 = (double*) R_alloc((size_t) n, sizeof(double));
   dwork3 = (double*) R_alloc((size_t) imax2(n, lwork), sizeof(double));
   diagT = (double*) R_alloc((size_t) p, sizeof(double));
